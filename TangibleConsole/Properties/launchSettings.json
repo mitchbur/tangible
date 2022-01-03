@@ -1,0 +1,9 @@
+{
+  "profiles": {
+    "Tangible Console": {
+      "commandName": "Project",
+      "commandLineArgs": ".\\data\\interesting_data.txt .\\ghij.xlsx",
+      "workingDirectory": ".."
+    }
+  }
+}
