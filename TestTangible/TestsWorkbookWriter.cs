@@ -10,26 +10,34 @@ namespace TestTangible
 {
     class TestsWorkbookWriter
     {
+        private string input_tsv_filepath_ = null;
+
+        private void CreateInputDataFile()
+        {
+            this.input_tsv_filepath_ = DataGenerator.MakeRandomString(4) + ".txt";
+            var table = DataGenerator.GenerateExampleTableOne();
+            using (var writer = new TsvWriter())
+            {
+                writer.Write(table, input_tsv_filepath_);
+            }
+        }
+
         [SetUp]
         public void Setup()
         {
         }
 
-        public static string MakeRandomString( int length )
+        [OneTimeSetUp]
+        public void OneTimeSetup()
         {
-            var random_generator = new System.Random();
-            var char_seq = Enumerable.Range(0, length).
-                Select(k => (char)('a' + random_generator.Next(0, 25)) ).
-                ToArray();
-            return string.Concat(char_seq);
+            CreateInputDataFile();
         }
 
         [Test]
         public void TestAddWorksheet()
         {
-            var in_filepath = @"..\..\..\..\data\interesting_data.txt";
-            var out_filepath = MakeRandomString(4) + ".xlsx";
-            var table = ReadTestData(in_filepath);
+            var out_filepath = DataGenerator.MakeRandomString(4) + ".xlsx";
+            var table = ReadTestData(this.input_tsv_filepath_);
 
             var writer = new WorkbookWriter(out_filepath);
             writer.AddWorksheet(table);
@@ -43,9 +51,8 @@ namespace TestTangible
         [Test]
         public void TestExport()
         {
-            var in_filepath = @"..\..\..\..\data\interesting_data.txt";
-            var out_filepath = MakeRandomString(4) + ".xlsx";
-            var table = ReadTestData(in_filepath);
+            var out_filepath = DataGenerator.MakeRandomString(4) + ".xlsx";
+            var table = ReadTestData(this.input_tsv_filepath_);
             WorkbookWriter.ExportToWorkbook(out_filepath, new List<DataTable> { table });
 
             var info = new System.IO.FileInfo(out_filepath);
@@ -53,7 +60,7 @@ namespace TestTangible
             Assert.Greater(info.Length, 0, "output file not empty");
         }
 
-        public static DataTable ReadTestData( string filepath )
+        public static DataTable ReadTestData(string filepath)
         {
             DataTable test_datatable = null;
 

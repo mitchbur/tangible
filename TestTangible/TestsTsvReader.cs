@@ -2,6 +2,7 @@ using NUnit.Framework;
 using Tangible;
 using System;
 using System.Collections.Generic;
+using System.Data;
 using System.Linq;
 
 namespace TestTangible
@@ -11,6 +12,19 @@ namespace TestTangible
         [SetUp]
         public void Setup()
         {
+        }
+
+        [Test]
+        public void ReadExample()
+        {
+            string example_filepath = DataGenerator.MakeRandomString(4) + ".txt";
+            var expected_table = DataGenerator.GenerateExampleTableOne();
+            using (var writer = new TsvWriter())
+            {
+                writer.Write(expected_table, example_filepath);
+            }
+
+            var readback_table = TsvReader.ReadTsvFile(example_filepath);
         }
 
         [Test]
