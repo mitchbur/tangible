@@ -12,15 +12,29 @@ namespace Tangible
 {
     public class WorkbookWriter : IDisposable
     {
-        public WorkbookWriter( string filepath )
+        /// <summary>
+        /// construct Workbook writer
+        /// </summary>
+        /// <param name="filepath">path to created file</param>
+        /// <param name="tablestyle">spreadsheet table style</param>
+        /// <param name="banded_rows">banded row table style</param>
+        /// <param name="integer_format">integer column numbering format</param>
+        /// <param name="scalar_format">scalar column numbering format</param>
+        /// <param name="date_format">date column numbering format</param>
+        public WorkbookWriter(string filepath, string tablestyle = "TableStyleLight1", bool banded_rows=true,
+            string integer_format = @"#0;[Red]-#0", string scalar_format = @"#0.000",
+            string date_format = @"yyyy\-mm\-dd\ hh:mm:ss")
         {
+            table_style_ = tablestyle;
+            banded_rows_ = banded_rows;
+
             doc_ = SpreadsheetDocument.
                 Create(filepath, SpreadsheetDocumentType.Workbook, autoSave: false);
             PrepareWorkbook(doc_);
 
-            // add some useful numbering formats
             style_codes_ = new Dictionary<TypeCode, Tuple<uint, uint>>();
-            CreateUsefulNumberingFormats();
+            CreateUsefulNumberingFormats(integer_format: integer_format, scalar_format: scalar_format,
+                date_format: date_format);
         }
 
         public void Dispose()
@@ -72,11 +86,13 @@ namespace Tangible
             this.is_disposed_ = true;
         }
 
-        private void CreateUsefulNumberingFormats()
+        private void CreateUsefulNumberingFormats(string integer_format, string scalar_format, string date_format)
         {
-            var numeric_style_code = CreateUserNumberingFormat(doc_.WorkbookPart.Workbook, @"#0.???");
+            var integer_style_code = CreateUserNumberingFormat(doc_.WorkbookPart.Workbook, integer_format);
+            style_codes_.Add(TypeCode.Int32, integer_style_code);
+            var numeric_style_code = CreateUserNumberingFormat(doc_.WorkbookPart.Workbook, scalar_format);
             style_codes_.Add(TypeCode.Double, numeric_style_code);
-            var datetime_style_code = CreateUserNumberingFormat(doc_.WorkbookPart.Workbook, @"yyyy\-mm\-dd\ hh:mm:ss");
+            var datetime_style_code = CreateUserNumberingFormat(doc_.WorkbookPart.Workbook, date_format);
             style_codes_.Add(TypeCode.DateTime, datetime_style_code);
             var boolean_style_code = CreateUserNumberingFormat(doc_.WorkbookPart.Workbook, "\"TRUE\";\"TRUE\";\"FALSE\"");
             style_codes_.Add(TypeCode.Boolean, boolean_style_code);
@@ -184,6 +200,9 @@ namespace Tangible
 
         // Number Format IDs less than 164 correspond to pre-defined numbering formats.
         private static uint NextAvailableNumberingFormatId_ = 164;
+        private StringValue table_style_;
+        private BooleanValue banded_rows_ = true;
+
         private static uint AssignUserNumerbingFormatId()
         {
             return NextAvailableNumberingFormatId_++;
@@ -233,7 +252,7 @@ namespace Tangible
             return new Tuple<uint, uint>(cell_formats_index, diffr_formats_index);
         }
 
-        private void AppendNewWorksheet( WorkbookPart workbook_part, DataTable table )
+        private void AppendNewWorksheet(WorkbookPart workbook_part, DataTable table)
         {
             var shared_string_table = workbook_part.Workbook.GetFirstChild<SharedStringTable>();
             var worksheet_part = workbook_part.AddNewPart<WorksheetPart>();
@@ -259,20 +278,25 @@ namespace Tangible
 
                 switch (typecode)
                 {
+                    case TypeCode.Int32:
+                        col_definition.Width = 12;
+                        col_definition.Style = style_codes_[typecode].Item1;
+                        t_col.DataFormatId = style_codes_[typecode].Item2;
+                        break;
                     case TypeCode.Double:
-                        col_definition.Width = 11;
-                        col_definition.Style = style_codes_[TypeCode.Double].Item1;
-                        t_col.DataFormatId = style_codes_[TypeCode.Double].Item2;
+                        col_definition.Width = 14;
+                        col_definition.Style = style_codes_[typecode].Item1;
+                        t_col.DataFormatId = style_codes_[typecode].Item2;
                         break;
                     case TypeCode.DateTime:
-                        col_definition.Width = 24;
-                        col_definition.Style = style_codes_[TypeCode.DateTime].Item1;
-                        t_col.DataFormatId = style_codes_[TypeCode.DateTime].Item2;
+                        col_definition.Width = 25;
+                        col_definition.Style = style_codes_[typecode].Item1;
+                        t_col.DataFormatId = style_codes_[typecode].Item2;
                         break;
                     case TypeCode.Boolean:
-                        col_definition.Width = 24;
-                        col_definition.Style = style_codes_[TypeCode.Boolean].Item1;
-                        t_col.DataFormatId = style_codes_[TypeCode.Boolean].Item2;
+                        col_definition.Width = 12;
+                        col_definition.Style = style_codes_[typecode].Item1;
+                        t_col.DataFormatId = style_codes_[typecode].Item2;
                         break;
                     default:
                         col_definition.Width = 15;
@@ -285,7 +309,7 @@ namespace Tangible
             }
             worksheet_part.Worksheet.Append(cols);
 
-            var sheet_data = TableToSheetData(table );
+            var sheet_data = TableToSheetData(table);
             worksheet_part.Worksheet.Append(sheet_data);
             var sheet = new Sheet()
             {
@@ -307,8 +331,8 @@ namespace Tangible
             table_definition_part.Table.TableColumns = table_columns;
             table_definition_part.Table.TableStyleInfo = new TableStyleInfo()
             {
-                Name = "TableStyleMedium2",
-                ShowRowStripes = true,
+                Name = this.table_style_,
+                ShowRowStripes = this.banded_rows_,
                 ShowColumnStripes = false,
                 ShowFirstColumn = false,
                 ShowLastColumn = false
@@ -366,7 +390,7 @@ namespace Tangible
             return "A1:" + ColumnReference(num_cols) + num_rows.ToString();
         }
 
-        private SheetData TableToSheetData(DataTable table )
+        private SheetData TableToSheetData(DataTable table)
         {
             var sheet_data = new SheetData();
             var header_row = new Row();
@@ -381,58 +405,42 @@ namespace Tangible
                 header_row.AppendChild(cell);
             }
 
+            var col_cell_handlers = new List<IColumnTypeHandler>();
+            foreach (System.Data.DataColumn column in table.Columns)
+            {
+                TypeCode type_code = Type.GetTypeCode(column.DataType);
+                switch (type_code)
+                {
+                    case TypeCode.String:
+                        col_cell_handlers.Add(new StringColumnTypeHandler());
+                        break;
+                    case TypeCode.Boolean:
+                        col_cell_handlers.Add(new BooleanColumnTypeHandler(style_codes_[type_code].Item1));
+                        break;
+                    case TypeCode.Int32:
+                        col_cell_handlers.Add(new IntegerColumnTypeHandler(style_codes_[type_code].Item1));
+                        break;
+                    case TypeCode.Double:
+                        col_cell_handlers.Add(new ScalarColumnTypeHandler(style_codes_[type_code].Item1));
+                        break;
+                    case TypeCode.DateTime:
+                        col_cell_handlers.Add(new DateColumnTypeHandler(style_codes_[type_code].Item1));
+                        break;
+                }
+            }
+
             sheet_data.AppendChild(header_row);
 
             foreach (DataRow tbl_data_row in table.Rows)
             {
                 var sheet_row = new Row();
-                var col_enum = col_type_codes.GetEnumerator();
+                var col_handler_enum = col_cell_handlers.GetEnumerator();
                 foreach (var item in tbl_data_row.ItemArray)
                 {
-                    var cell = new Cell();
-
-                    col_enum.MoveNext();
-
-                    bool cell_is_null = (item.GetType() == typeof(DBNull));
-
-                    switch (col_enum.Current)
-                    {
-                        case TypeCode.Double:
-                            cell.DataType = CellValues.Number;
-                            cell.StyleIndex = style_codes_[TypeCode.Double].Item1;
-                            if (! cell_is_null)
-                            {
-                                cell.CellValue = new CellValue((double)item);
-                            }
-                            break;
-                        case TypeCode.DateTime:
-                            cell.DataType = CellValues.Date;
-                            cell.StyleIndex = style_codes_[TypeCode.DateTime].Item1;
-                            if (!cell_is_null)
-                            {
-                                cell.CellValue = new CellValue((DateTime)item);
-                            }
-                            break;
-                        case TypeCode.Boolean:
-                            cell.DataType = CellValues.Boolean;
-                            cell.StyleIndex = style_codes_[TypeCode.Boolean].Item1;
-                            if (!cell_is_null)
-                            {
-                                int value = (bool)item ? 1 : 0;
-                                cell.CellValue = new CellValue(value);
-                            }
-                            break;
-                        default:
-                            cell.DataType = CellValues.String;
-                            if (!cell_is_null)
-                            {
-                                cell.CellValue = new CellValue(item.ToString());
-                            }
-                            break;
-                    }
+                    col_handler_enum.MoveNext();
+                    var cell = col_handler_enum.Current.ConstructCell(item);
                     sheet_row.AppendChild(cell);
                 }
-
                 sheet_data.AppendChild(sheet_row);
             }
 
@@ -440,5 +448,120 @@ namespace Tangible
         }
 
     }
+
+    interface IColumnTypeHandler
+    {
+        public Cell ConstructCell(object item);
+    }
+
+    class StringColumnTypeHandler : IColumnTypeHandler
+    {
+        public StringColumnTypeHandler()
+        {
+        }
+
+        public Cell ConstructCell(object item)
+        {
+            var cell = new Cell();
+            cell.DataType = CellValues.String;
+            // cell.StyleIndex is not set, use default XML attribute
+            if ((item.GetType() != typeof(DBNull)))
+            {
+                cell.CellValue = new CellValue((string)item);
+            }
+            return cell;
+        }
+    }
+
+    class ScalarColumnTypeHandler : IColumnTypeHandler
+    {
+        public ScalarColumnTypeHandler(uint styleindex)
+        {
+            styleindex_ = styleindex;
+        }
+
+        public Cell ConstructCell(object item)
+        {
+            var cell = new Cell();
+            cell.DataType = CellValues.Number;
+            cell.StyleIndex = styleindex_;
+            if ((item.GetType() != typeof(DBNull)))
+            {
+                cell.CellValue = new CellValue((double)item);
+            }
+            return cell;
+        }
+
+        private uint styleindex_;
+    }
+
+    class IntegerColumnTypeHandler : IColumnTypeHandler
+    {
+        public IntegerColumnTypeHandler(uint styleindex)
+        {
+            styleindex_ = styleindex;
+        }
+
+        public Cell ConstructCell(object item)
+        {
+            var cell = new Cell();
+            cell.DataType = CellValues.Number;
+            cell.StyleIndex = styleindex_;
+            if ((item.GetType() != typeof(DBNull)))
+            {
+                cell.CellValue = new CellValue((int)item);
+            }
+            return cell;
+        }
+
+        private uint styleindex_;
+    }
+
+    class BooleanColumnTypeHandler : IColumnTypeHandler
+    {
+        public BooleanColumnTypeHandler(uint styleindex)
+        {
+            styleindex_ = styleindex;
+        }
+
+        public Cell ConstructCell(object item)
+        {
+            var cell = new Cell();
+            cell.DataType = CellValues.Boolean;
+            cell.StyleIndex = styleindex_;
+            if ((item.GetType() != typeof(DBNull)))
+            {
+                int value = (bool)item ? 1 : 0;
+                cell.CellValue = new CellValue(value);
+            }
+            return cell;
+        }
+
+        private uint styleindex_;
+    }
+
+    class DateColumnTypeHandler : IColumnTypeHandler
+    {
+        public DateColumnTypeHandler(uint styleindex)
+        {
+            styleindex_ = styleindex;
+        }
+
+        public Cell ConstructCell(object item)
+        {
+            var cell = new Cell();
+            cell.DataType = CellValues.Date;
+            cell.StyleIndex = styleindex_;
+            if ((item.GetType() != typeof(DBNull)))
+            {
+                cell.CellValue = new CellValue((DateTime)item);
+            }
+            return cell;
+        }
+
+        private uint styleindex_;
+    }
+
+
     #endregion
 }

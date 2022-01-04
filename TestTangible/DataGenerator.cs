@@ -11,23 +11,23 @@ namespace TestTangible
         public static DataTable GenerateExampleTableOne( )
         {
             var colors = new List<string>() {
-            "red",
-            "orange",
-            "orange",
-            "yellow",
-            "green",
-            "green",
-            "blue",
-            "indigo",
-            "indigo",
-            "violet" };
+            "661 red",
+            "595 orange",
+            "595 orange",
+            "575 yellow",
+            "523 green",
+            "523 green",
+            "482 blue",
+            "450 indigo",
+            "450 indigo",
+            "423 violet" };
             var gas_molforms = new List<string>() {
                 "CH4",
-                "NH3",
+                "C3F6",
                 "C2H6",
                 "Ar",
                 "H2O",
-                "CHCl3",
+                "CF4",
                 "SF6"
             };
             var table = DataGenerator.LightIntensityTable(Enumerable.Range(4567, 7 * 8),

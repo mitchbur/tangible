@@ -114,8 +114,21 @@ namespace Tangible
                         case TypeCode.Boolean:
                         case TypeCode.String:
                             break;
+                        case TypeCode.Int32:
+                            if ( !IsInteger(item.Key))
+                            {
+                                if (IsDouble(item.Key))
+                                {
+                                    col_types[j] = typeof(double);
+                                }
+                                else
+                                {
+                                    col_types[j] = typeof(string);
+                                }
+                            }
+                            break;
                         case TypeCode.Double:
-                            if (!IsNumeric(item.Key))
+                            if (!IsDouble(item.Key))
                             {
                                 // inconsistency so column must be string
                                 col_types[j] = typeof(string);
@@ -134,9 +147,16 @@ namespace Tangible
                             {
                                 col_types[j] = typeof(DateTime);
                             }
-                            else if (IsNumeric(item.Key))
+                            else if (IsDouble(item.Key))
                             {
-                                col_types[j] = typeof(double);
+                                if ( IsInteger(item.Key))
+                                {
+                                    col_types[j] = typeof(int);
+                                }
+                                else
+                                {
+                                    col_types[j] = typeof(double);
+                                }
                             }
                             else
                             {
@@ -153,11 +173,18 @@ namespace Tangible
         {
             return ( s.Length == 0 );
         }
-        private static bool IsNumeric(string s )
+        private static bool IsDouble(string s )
         {
             double dummy_value;
             return Double.TryParse(s, out dummy_value);
         }
+
+        private static bool IsInteger(string s)
+        {
+            int dummy_value;
+            return Int32.TryParse(s, out dummy_value);
+        }
+
 
         private static readonly CultureInfo datetime_culture = CultureInfo.InvariantCulture;
         private static readonly DateTimeStyles datetime_style = DateTimeStyles.AdjustToUniversal | 
