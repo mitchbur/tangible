@@ -10,6 +10,110 @@ using System.Linq;
 
 namespace Tangible
 {
+    public interface IWorksheetStylePolicy
+    {
+        public string TableStyle { get; set; }
+        public bool IsTableRowsBanded { get; set; }
+        public string IntegerNumberingFormat { get; set; }
+        public string BooleanNumberingFormat { get; set; }
+        public string DateNumberingFormat { get; set; }
+        public string ScalarNumberingFormat { get; set; }
+
+        public string VariableScalarNumberingFormat(DataTable table, int index);
+
+    }
+    public class WorksheetStylePolicy : IWorksheetStylePolicy
+    {
+        public WorksheetStylePolicy(
+            string table_style = "TableStyleLight1", 
+            bool banded_rows = true,
+            string integer_format = @"#0;[Red]-#0",
+            string scalar_format = @"#0.000", 
+            string date_format = @"yyyy\-mm\-dd\ hh:mm:ss",
+            string boolean_format = "\"TRUE\";\"TRUE\";\"FALSE\"")
+        {
+            table_style_ = table_style;
+            banded_rows_ = banded_rows;
+            integer_numbering_format_ = integer_format;
+            scalar_numbering_format_ = scalar_format;
+            date_numbering_format_ = date_format;
+            boolean_numbering_format_ = boolean_format;
+        }
+
+        public string TableStyle
+        {
+            get => table_style_;
+
+            set
+            {
+                table_style_ = value;
+            }
+        }
+
+        public bool IsTableRowsBanded
+        {
+            get => banded_rows_;
+
+            set
+            {
+                banded_rows_ = value;
+            }
+        }
+
+        public string IntegerNumberingFormat
+        {
+            get => integer_numbering_format_;
+
+            set
+            {
+                integer_numbering_format_ = value;
+            }
+        }
+
+        public string BooleanNumberingFormat
+        {
+            get => boolean_numbering_format_;
+
+            set
+            {
+                boolean_numbering_format_ = value;
+            }
+        }
+
+        public string DateNumberingFormat
+        {
+            get => date_numbering_format_;
+
+            set
+            {
+                date_numbering_format_ = value;
+            }
+        }
+
+        public string ScalarNumberingFormat
+        {
+            get => scalar_numbering_format_;
+
+            set
+            {
+                scalar_numbering_format_ = value;
+            }
+        }
+
+        private string table_style_;
+        private bool banded_rows_;
+        private string integer_numbering_format_;
+        private string date_numbering_format_;
+        private string boolean_numbering_format_;
+        private string scalar_numbering_format_;
+
+        public string VariableScalarNumberingFormat(DataTable table, int index)
+        {
+            // return default scalar numbering format
+            return scalar_numbering_format_;
+        }
+    }
+
     public class WorkbookWriter : IDisposable
     {
         /// <summary>
@@ -21,20 +125,26 @@ namespace Tangible
         /// <param name="integer_format">integer column numbering format</param>
         /// <param name="scalar_format">scalar column numbering format</param>
         /// <param name="date_format">date column numbering format</param>
-        public WorkbookWriter(string filepath, string tablestyle = "TableStyleLight1", bool banded_rows=true,
-            string integer_format = @"#0;[Red]-#0", string scalar_format = @"#0.000",
-            string date_format = @"yyyy\-mm\-dd\ hh:mm:ss")
+        public WorkbookWriter(string filepath, IWorksheetStylePolicy style_policy=null )
         {
-            table_style_ = tablestyle;
-            banded_rows_ = banded_rows;
+            if ( style_policy == null )
+            {
+                style_policy_ = new WorksheetStylePolicy();
+            }
+            else
+            {
+                style_policy_ = style_policy;
+            }
 
             doc_ = SpreadsheetDocument.
                 Create(filepath, SpreadsheetDocumentType.Workbook, autoSave: false);
             PrepareWorkbook(doc_);
 
             style_codes_ = new Dictionary<TypeCode, Tuple<uint, uint>>();
-            CreateUsefulNumberingFormats(integer_format: integer_format, scalar_format: scalar_format,
-                date_format: date_format);
+            CreateUsefulNumberingFormats(integer_format: style_policy_.IntegerNumberingFormat, 
+                scalar_format: style_policy_.ScalarNumberingFormat,
+                date_format: style_policy_.DateNumberingFormat,
+                bool_format: style_policy_.BooleanNumberingFormat);
         }
 
         public void Dispose()
@@ -86,7 +196,7 @@ namespace Tangible
             this.is_disposed_ = true;
         }
 
-        private void CreateUsefulNumberingFormats(string integer_format, string scalar_format, string date_format)
+        private void CreateUsefulNumberingFormats(string integer_format, string scalar_format, string date_format, string bool_format)
         {
             var integer_style_code = CreateUserNumberingFormat(doc_.WorkbookPart.Workbook, integer_format);
             style_codes_.Add(TypeCode.Int32, integer_style_code);
@@ -94,7 +204,7 @@ namespace Tangible
             style_codes_.Add(TypeCode.Double, numeric_style_code);
             var datetime_style_code = CreateUserNumberingFormat(doc_.WorkbookPart.Workbook, date_format);
             style_codes_.Add(TypeCode.DateTime, datetime_style_code);
-            var boolean_style_code = CreateUserNumberingFormat(doc_.WorkbookPart.Workbook, "\"TRUE\";\"TRUE\";\"FALSE\"");
+            var boolean_style_code = CreateUserNumberingFormat(doc_.WorkbookPart.Workbook, bool_format);
             style_codes_.Add(TypeCode.Boolean, boolean_style_code);
         }
 
@@ -200,8 +310,7 @@ namespace Tangible
 
         // Number Format IDs less than 164 correspond to pre-defined numbering formats.
         private static uint NextAvailableNumberingFormatId_ = 164;
-        private StringValue table_style_;
-        private BooleanValue banded_rows_ = true;
+        private IWorksheetStylePolicy style_policy_;
 
         private static uint AssignUserNumerbingFormatId()
         {
@@ -331,8 +440,8 @@ namespace Tangible
             table_definition_part.Table.TableColumns = table_columns;
             table_definition_part.Table.TableStyleInfo = new TableStyleInfo()
             {
-                Name = this.table_style_,
-                ShowRowStripes = this.banded_rows_,
+                Name = this.style_policy_.TableStyle,
+                ShowRowStripes = this.style_policy_.IsTableRowsBanded,
                 ShowColumnStripes = false,
                 ShowFirstColumn = false,
                 ShowLastColumn = false
