@@ -463,29 +463,36 @@ namespace Tangible
             worksheet_part.Worksheet.Save();
         }
 
-        private static readonly uint num_column_letters_ = (uint)'Z' - (uint)'A' + 1;
-        private static string ColumnReference(uint col)
+        /// <summary>
+        /// alphabetic column reference
+        /// </summary>
+        /// <param name="col">column number (1 based)</param>
+        /// <returns>string of letters referencing the column</returns>
+        public static string ColumnReference(uint col)
         {
-            var dividend = col - 1;
-
-            if (dividend < num_column_letters_)
+            if (col < 1) return "<invalid>";
+            if ( col <= num_column_letters_ )
             {
-                // single letter representation
-                return ((char)((uint)'A' + dividend)).ToString();
+                // optimize the common single letter cases
+                // [1,26] -> [A,Z]
+                return ((char)((uint)'A' + col - 1)).ToString();
             }
 
-            var rems = new List<uint>();
-            while (dividend >= num_column_letters_)
+            var dividend = col;
+            var letters = new List<char>();
+            while (true)
             {
+                dividend = dividend - 1;
                 var remainder = dividend % num_column_letters_;
                 dividend = dividend / num_column_letters_;
-                rems.Insert(0, remainder);
+                letters.Insert(0, (char)((uint)'A' + remainder));
+
+                if (dividend == 0) break;
             }
-            rems.Insert(0, dividend);
-            var letters = rems.Select(x => (char)((uint)'A' + x));
             var colref = string.Concat(letters);
             return colref;
         }
+        private static readonly uint num_column_letters_ = (uint)'Z' - (uint)'A' + 1;
 
         private static string CellRangeReference(uint row, uint col, uint num_rows, uint num_cols)
         {
