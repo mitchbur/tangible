@@ -12,14 +12,14 @@ namespace Tangible
 {
     public interface IWorksheetStylePolicy
     {
-        public string TableStyle { get; set; }
-        public bool IsTableRowsBanded { get; set; }
-        public string IntegerNumberingFormat { get; set; }
-        public string BooleanNumberingFormat { get; set; }
-        public string DateNumberingFormat { get; set; }
-        public string ScalarNumberingFormat { get; set; }
+        string TableStyle { get; set; }
+        bool IsTableRowsBanded { get; set; }
+        string IntegerNumberingFormat { get; set; }
+        string BooleanNumberingFormat { get; set; }
+        string DateNumberingFormat { get; set; }
+        string ScalarNumberingFormat { get; set; }
 
-        public string VariableScalarNumberingFormat(DataTable table, int index);
+        string VariableScalarNumberingFormat(DataTable table, int index);
 
     }
     public class WorksheetStylePolicy : IWorksheetStylePolicy
@@ -560,7 +560,7 @@ namespace Tangible
 
     interface IColumnTypeHandler
     {
-        public Cell ConstructCell(object item);
+        Cell ConstructCell(object item);
     }
 
     class StringColumnTypeHandler : IColumnTypeHandler
@@ -670,7 +670,6 @@ namespace Tangible
 
         private uint styleindex_;
     }
-
 
     #endregion
 }
